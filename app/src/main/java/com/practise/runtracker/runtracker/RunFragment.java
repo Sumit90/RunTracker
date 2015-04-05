@@ -1,5 +1,9 @@
 package com.practise.runtracker.runtracker;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -8,21 +12,54 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * Created by home on 03-04-2015.
  */
 public class RunFragment extends Fragment {
 
+    private BroadcastReceiver mLocationReceiver=new LocationReceiver()
+    {
+        @Override
+        protected void onLocationReceived(Context context, Location loc) {
+            mLastLocation = loc;
+            if (isVisible())
+                updateUI();
+        }
+
+        @Override
+        protected void onProviderEnabledChanged(boolean enabled) {
+            int toastText = enabled ? R.string.gps_enabled : R.string.gps_disabled;
+            Toast.makeText(getActivity(), toastText, Toast.LENGTH_LONG).show();
+        }
+    };
+
     private Button mStartButton,mStopButton;
     private TextView mStarted,mLatitude,mLongitude,mAltitude,mElapsedTime;
     private RunManager mRunManager;
+    private Run mRun;
+    private Location mLastLocation;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
+        mRun = new Run();
         mRunManager=RunManager.getInstance(getActivity());
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        getActivity().registerReceiver(mLocationReceiver,new IntentFilter(RunManager.ACTION_LOCATION));
+    }
+
+    @Override
+    public void onStop() {
+
+        getActivity().unregisterReceiver(mLocationReceiver);
+        super.onStop();
     }
 
     @Override
@@ -64,6 +101,17 @@ public class RunFragment extends Fragment {
     private void updateUI()
     {
         boolean isStarted=mRunManager.isTrackingRun();
+
+        if (mRun != null)
+            mStarted.setText(mRun.getStartDate().toString());
+        int durationSeconds = 0;
+        if (mRun != null && mLastLocation != null) {
+            durationSeconds = mRun.getDurationSeconds(mLastLocation.getTime());
+            mLatitude.setText(Double.toString(mLastLocation.getLatitude()));
+            mLongitude.setText(Double.toString(mLastLocation.getLongitude()));
+            mAltitude.setText(Double.toString(mLastLocation.getAltitude()));
+        }
+        mElapsedTime.setText(Run.formatDuration(durationSeconds));
 
         mStartButton.setEnabled(!isStarted);
         mStopButton.setEnabled(isStarted);
